@@ -1,0 +1,233 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+@import '@fontsource-variable/geist';
+
+@custom-variant dark (&:is(.dark *));
+
+/* Semantic tokens aligned with repo root `src/index.css` + `tailwind.config.ts` (shadcn / HSL palette). */
+
+:root {
+  color-scheme: light;
+
+  --background: hsl(0 0% 99%);
+  --foreground: hsl(224 20% 12%);
+
+  --card: hsl(0 0% 100%);
+  --card-foreground: hsl(224 20% 12%);
+
+  --popover: hsl(0 0% 100%);
+  --popover-foreground: hsl(224 20% 12%);
+
+  --primary: hsl(221 83% 53%);
+  --primary-foreground: hsl(0 0% 100%);
+
+  --secondary: hsl(220 14% 96%);
+  --secondary-foreground: hsl(224 20% 12%);
+
+  --muted: hsl(220 14% 96%);
+  --muted-foreground: hsl(220 9% 46%);
+
+  --accent: hsl(220 14% 96%);
+  --accent-foreground: hsl(224 20% 12%);
+
+  --destructive: hsl(0 72% 51%);
+  --destructive-foreground: hsl(0 0% 100%);
+
+  --success: hsl(142 71% 45%);
+  --success-foreground: hsl(0 0% 100%);
+
+  --warning: hsl(38 92% 50%);
+  --warning-foreground: hsl(0 0% 100%);
+
+  --border: hsl(220 13% 91%);
+  --input: hsl(220 13% 91%);
+  --ring: hsl(221 83% 53%);
+
+  --radius: 0.5rem;
+
+  --sidebar: hsl(0 0% 98%);
+  --sidebar-foreground: hsl(240 5.3% 26.1%);
+  --sidebar-primary: hsl(240 5.9% 10%);
+  --sidebar-primary-foreground: hsl(0 0% 98%);
+  --sidebar-accent: hsl(240 4.8% 95.9%);
+  --sidebar-accent-foreground: hsl(240 5.9% 10%);
+  --sidebar-border: hsl(220 13% 91%);
+  --sidebar-ring: hsl(217.2 91.2% 59.8%);
+
+  --surface: hsl(220 14% 98%);
+  --surface-hover: hsl(220 14% 95%);
+  --kanban-bg: hsl(220 14% 97%);
+
+  --chart-1: hsl(221 83% 53%);
+  --chart-2: hsl(220 9% 46%);
+  --chart-3: hsl(224 20% 40%);
+  --chart-4: hsl(224 20% 32%);
+  --chart-5: hsl(224 30% 24%);
+}
+
+.dark {
+  color-scheme: dark;
+
+  --background: hsl(224 30% 7%);
+  --foreground: hsl(210 20% 92%);
+
+  --card: hsl(224 25% 10%);
+  --card-foreground: hsl(210 20% 92%);
+
+  --popover: hsl(224 25% 10%);
+  --popover-foreground: hsl(210 20% 92%);
+
+  --primary: hsl(221 83% 53%);
+  --primary-foreground: hsl(0 0% 100%);
+
+  --secondary: hsl(224 20% 16%);
+  --secondary-foreground: hsl(210 20% 92%);
+
+  --muted: hsl(224 20% 16%);
+  --muted-foreground: hsl(220 9% 56%);
+
+  --accent: hsl(224 20% 16%);
+  --accent-foreground: hsl(210 20% 92%);
+
+  --destructive: hsl(0 62% 50%);
+  --destructive-foreground: hsl(0 0% 100%);
+
+  --success: hsl(142 71% 45%);
+  --success-foreground: hsl(0 0% 100%);
+
+  --warning: hsl(38 92% 50%);
+  --warning-foreground: hsl(0 0% 100%);
+
+  --border: hsl(224 15% 18%);
+  --input: hsl(224 15% 18%);
+  --ring: hsl(221 83% 53%);
+
+  --sidebar: hsl(224 30% 7%);
+  --sidebar-foreground: hsl(240 4.8% 95.9%);
+  --sidebar-primary: hsl(224.3 76.3% 48%);
+  --sidebar-primary-foreground: hsl(0 0% 100%);
+  --sidebar-accent: hsl(224 20% 14%);
+  --sidebar-accent-foreground: hsl(240 4.8% 95.9%);
+  --sidebar-border: hsl(224 15% 18%);
+  --sidebar-ring: hsl(217.2 91.2% 59.8%);
+
+  --surface: hsl(224 25% 11%);
+  --surface-hover: hsl(224 25% 14%);
+  --kanban-bg: hsl(224 25% 9%);
+
+  --chart-1: hsl(221 83% 53%);
+  --chart-2: hsl(220 9% 56%);
+  --chart-3: hsl(210 20% 70%);
+  --chart-4: hsl(210 20% 60%);
+  --chart-5: hsl(210 20% 50%);
+}
+
+@theme inline {
+  --font-heading: var(--font-sans);
+  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
+  --color-kanban-bg: var(--kanban-bg);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Match root `tailwind.config.ts` radius scale (extends default theme). */
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes slide-in {
+    from {
+      opacity: 0;
+      transform: translateX(-8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  --animate-fade-in: fade-in 0.3s ease-out;
+  --animate-slide-in: slide-in 0.3s ease-out;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    margin: 0;
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings:
+      'rlig' 1,
+      'calt' 1;
+  }
+
+  html {
+    @apply font-sans;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+#root {
+  min-height: 100svh;
+}
