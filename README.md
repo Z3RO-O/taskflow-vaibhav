@@ -60,7 +60,6 @@ npm run preview
 
 ---
 
-
 ## 5. Test credentials
 
 After a **fresh** app load (empty `localStorage`), the mock seeds automatically. Use:
@@ -80,19 +79,19 @@ Additional seed user: `jane@example.com` / `password123`.
 
 **Target contract (Appendix A)** — for a future server at `http://localhost:4000`:
 
-| Method | Path | Notes |
-|--------|------|--------|
-| POST | `/auth/register` | Body: `name`, `email`, `password` |
-| POST | `/auth/login` | Body: `email`, `password` |
-| GET | `/projects` | Header: `Authorization: Bearer <token>` |
-| POST | `/projects` | Create project |
-| GET | `/projects/:id` | Project + nested `tasks` |
-| PATCH | `/projects/:id` | Owner updates `name` / `description` |
-| DELETE | `/projects/:id` | `204` |
-| GET | `/projects/:id/tasks` | Query: `?status=`, `?assignee=` |
-| POST | `/projects/:id/tasks` | Create task |
-| PATCH | `/tasks/:id` | Partial update |
-| DELETE | `/tasks/:id` | `204` |
+| Method | Path                  | Notes                                   |
+| ------ | --------------------- | --------------------------------------- |
+| POST   | `/auth/register`      | Body: `name`, `email`, `password`       |
+| POST   | `/auth/login`         | Body: `email`, `password`               |
+| GET    | `/projects`           | Header: `Authorization: Bearer <token>` |
+| POST   | `/projects`           | Create project                          |
+| GET    | `/projects/:id`       | Project + nested `tasks`                |
+| PATCH  | `/projects/:id`       | Owner updates `name` / `description`    |
+| DELETE | `/projects/:id`       | `204`                                   |
+| GET    | `/projects/:id/tasks` | Query: `?status=`, `?assignee=`         |
+| POST   | `/projects/:id/tasks` | Create task                             |
+| PATCH  | `/tasks/:id`          | Partial update                          |
+| DELETE | `/tasks/:id`          | `204`                                   |
 
 **Validation error (400):**
 
@@ -106,31 +105,31 @@ Additional seed user: `jane@example.com` / `password123`.
 
 ## 7. Insights about frontend-app
 
-| Requirement | Status |
-|-------------|--------|
-| Login / Register, client validation, token in `localStorage` | Done (`RegisterPage` field errors; `AuthContext`) |
-| Projects list + create | Done |
-| Project detail, filters (status, assignee), task modal | Done |
-| Navbar: name, logout | Done |
-| React Router + protected routes | Done |
-| Auth persists across refresh | Done |
-| Loading / error / empty states (no silent failures) | Mostly done; lists, modals, and `/` index route show spinners or messages |
-| Optimistic task **status** change with revert | Done (`ProjectDetailPage` + Kanban) |
-| Component library stated | **shadcn/ui** (Radix Nova) — see Overview |
-| Responsive 375px / 1280px | Layout uses responsive utilities; worth a manual pass before submit |
-| Production build without console errors | Run `npm run build` + `npm run preview` and smoke-test |
+| Requirement                                                  | Status                                                                    |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------- |
+| Login / Register, client validation, token in `localStorage` | Done (`RegisterPage` field errors; `AuthContext`)                         |
+| Projects list + create                                       | Done                                                                      |
+| Project detail, filters (status, assignee), task modal       | Done                                                                      |
+| Navbar: name, logout                                         | Done                                                                      |
+| React Router + protected routes                              | Done                                                                      |
+| Auth persists across refresh                                 | Done                                                                      |
+| Loading / error / empty states (no silent failures)          | Mostly done; lists, modals, and `/` index route show spinners or messages |
+| Optimistic task **status** change with revert                | Done (`ProjectDetailPage` + Kanban)                                       |
+| Component library stated                                     | **shadcn/ui** (Radix Nova) — see Overview                                 |
+| Responsive 375px / 1280px                                    | Layout uses responsive utilities; worth a manual pass before submit       |
+| Production build without console errors                      | Run `npm run build` + `npm run preview` and smoke-test                    |
 
 ---
 
 ## Scripts
 
-| Command | Purpose |
-|---------|---------|
-| `npm run dev` | Vite dev server |
-| `npm run build` | Typecheck + production build |
+| Command           | Purpose                          |
+| ----------------- | -------------------------------- |
+| `npm run dev`     | Vite dev server                  |
+| `npm run build`   | Typecheck + production build     |
 | `npm run preview` | Preview production build locally |
-| `npm run lint` | ESLint |
-| `npm run format` | Prettier |
+| `npm run lint`    | ESLint                           |
+| `npm run format`  | Prettier                         |
 
 ---
 
