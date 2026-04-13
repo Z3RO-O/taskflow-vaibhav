@@ -1,12 +1,4 @@
 services:
-  react-prod:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: docker-reactjs-sample
-    ports:
-      - '8080:8080'
-
   react-dev:
     build:
       context: .
