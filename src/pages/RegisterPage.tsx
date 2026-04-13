@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { Link, Navigate } from 'react-router';
+import { Link, Navigate, useSearchParams } from 'react-router';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,12 +8,20 @@ import { FolderKanban, Loader2 } from 'lucide-react';
 
 export default function RegisterPage() {
   const { register, user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const inviteFromUrl = searchParams.get('invite')?.trim() ?? '';
+
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [inviteCode, setInviteCode] = useState(inviteFromUrl);
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setInviteCode(inviteFromUrl);
+  }, [inviteFromUrl]);
 
   if (user) return <Navigate to='/' replace />;
 
@@ -34,7 +42,8 @@ export default function RegisterPage() {
 
     setLoading(true);
     try {
-      await register(name.trim(), email.trim(), password);
+      const code = inviteCode.trim() || null;
+      await register(name.trim(), email.trim(), password, code);
     } catch (err: any) {
       if (err?.fields) setFieldErrors(err.fields);
       else setError(err?.error || 'Registration failed');
@@ -54,6 +63,13 @@ export default function RegisterPage() {
             </span>
           </div>
           <p className='text-sm text-muted-foreground'>Create your account</p>
+          {inviteFromUrl && (
+            <p className='mt-2 text-xs text-muted-foreground'>
+              You are joining an organization using an invite link. Leave the
+              code blank only if you intend to create a separate workspace
+              instead.
+            </p>
+          )}
         </div>
 
         <form onSubmit={handleSubmit} className='space-y-4'>
@@ -104,6 +120,25 @@ export default function RegisterPage() {
             {fieldErrors.password && (
               <p className='mt-1 text-xs text-destructive'>
                 {fieldErrors.password}
+              </p>
+            )}
+          </div>
+          <div>
+            <Label htmlFor='invite'>Organization invite code</Label>
+            <Input
+              id='invite'
+              value={inviteCode}
+              onChange={e => setInviteCode(e.target.value)}
+              placeholder='e.g. ACME-DEMO'
+              autoComplete='off'
+            />
+            <p className='mt-1 text-xs text-muted-foreground'>
+              Optional. Leave empty to create your own workspace. Use a code
+              from your team to join their organization.
+            </p>
+            {fieldErrors.invite && (
+              <p className='mt-1 text-xs text-destructive'>
+                {fieldErrors.invite}
               </p>
             )}
           </div>

@@ -7,6 +7,7 @@ import {
   type DropResult,
 } from '@hello-pangea/dnd';
 import { cn } from '@/lib/utils';
+import { sortColumnTasks } from '@/lib/task-order';
 
 const columns: { id: TaskStatus; label: string; dot: string }[] = [
   { id: 'todo', label: 'To Do', dot: 'bg-muted-foreground' },
@@ -18,30 +19,27 @@ interface KanbanBoardProps {
   tasks: Task[];
   users: User[];
   onTaskClick: (task: Task) => void;
-  onStatusChange: (taskId: string, newStatus: TaskStatus) => void;
+  onDragEnd: (result: DropResult) => void;
 }
 
 export default function KanbanBoard({
   tasks,
   users,
   onTaskClick,
-  onStatusChange,
+  onDragEnd,
 }: KanbanBoardProps) {
   const handleDragEnd = (result: DropResult) => {
     if (!result.destination) return;
-    const newStatus = result.destination.droppableId as TaskStatus;
-    const taskId = result.draggableId;
-    const task = tasks.find(t => t.id === taskId);
-    if (task && task.status !== newStatus) {
-      onStatusChange(taskId, newStatus);
-    }
+    onDragEnd(result);
   };
 
   return (
     <DragDropContext onDragEnd={handleDragEnd}>
       <div className='grid grid-cols-1 gap-4 md:grid-cols-3'>
         {columns.map(col => {
-          const colTasks = tasks.filter(t => t.status === col.id);
+          const colTasks = sortColumnTasks(
+            tasks.filter(t => t.status === col.id)
+          );
           return (
             <div
               key={col.id}

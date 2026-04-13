@@ -6,14 +6,25 @@ import React, {
   useCallback,
 } from 'react';
 import type { User } from '@/types';
-import { loginUser, registerUser } from '@/lib/mock-db';
+import {
+  loginUser,
+  registerUser,
+  getSafeUserById,
+  updateUserProfile,
+} from '@/lib/mock-db';
 
 interface AuthContextType {
   user: User | null;
   token: string | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
+  register: (
+    name: string,
+    email: string,
+    password: string,
+    inviteCode?: string | null
+  ) => Promise<void>;
+  updateProfile: (name: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -32,7 +43,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const parsed = JSON.parse(atob(savedToken));
         if (parsed.exp > Date.now()) {
           setToken(savedToken);
-          setUser(JSON.parse(savedUser));
+          let u = JSON.parse(savedUser) as User;
+          if (!u.org_id && parsed.user_id) {
+            const fresh = getSafeUserById(parsed.user_id as string);
+            if (fresh) {
+              u = fresh;
+              localStorage.setItem('taskflow_user', JSON.stringify(u));
+            }
+          }
+          setUser(u);
         } else {
           localStorage.removeItem('taskflow_token');
           localStorage.removeItem('taskflow_user');
@@ -54,14 +73,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const register = useCallback(
-    async (name: string, email: string, password: string) => {
-      const res = await registerUser(name, email, password);
+    async (
+      name: string,
+      email: string,
+      password: string,
+      inviteCode?: string | null
+    ) => {
+      const res = await registerUser(name, email, password, inviteCode);
       setToken(res.token);
       setUser(res.user);
       localStorage.setItem('taskflow_token', res.token);
       localStorage.setItem('taskflow_user', JSON.stringify(res.user));
     },
     []
+  );
+
+  const updateProfile = useCallback(
+    async (name: string) => {
+      if (!user) return;
+      const updated = await updateUserProfile(user.id, { name });
+      setUser(updated);
+      localStorage.setItem('taskflow_user', JSON.stringify(updated));
+    },
+    [user]
   );
 
   const logout = useCallback(() => {
@@ -73,7 +107,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, token, isLoading, login, register, logout }}
+      value={{
+        user,
+        token,
+        isLoading,
+        login,
+        register,
+        updateProfile,
+        logout,
+      }}
     >
       {children}
     </AuthContext.Provider>

@@ -1,9 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { useAuth } from '@/contexts/AuthContext';
-import type { Project } from '@/types';
-import { getProjects, createProject, deleteProject } from '@/lib/mock-db';
-import Navbar from '@/components/Navbar';
+import type { Organization, Project } from '@/types';
+import {
+  getProjects,
+  createProject,
+  deleteProject,
+  getOrganization,
+} from '@/lib/mock-db';
+import Navbar, { ORG_UPDATED_EVENT } from '@/components/Navbar';
 import ProjectModal from '@/components/ProjectModal';
 import EmptyState from '@/components/EmptyState';
 import { Button } from '@/components/ui/button';
@@ -26,6 +31,7 @@ import { format } from 'date-fns';
 export default function ProjectsPage() {
   const { user } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
+  const [org, setOrg] = useState<Organization | null>(null);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -44,6 +50,22 @@ export default function ProjectsPage() {
   useEffect(() => {
     fetchProjects();
   }, [user]);
+
+  useEffect(() => {
+    if (!user?.org_id) {
+      setOrg(null);
+      return;
+    }
+    const orgId = user.org_id;
+    const load = () =>
+      getOrganization(orgId)
+        .then(setOrg)
+        .catch(() => setOrg(null));
+    load();
+    const onOrgUpdated = () => load();
+    window.addEventListener(ORG_UPDATED_EVENT, onOrgUpdated);
+    return () => window.removeEventListener(ORG_UPDATED_EVENT, onOrgUpdated);
+  }, [user?.org_id]);
 
   const handleCreate = async (data: { name: string; description?: string }) => {
     if (!user) return;
@@ -81,7 +103,17 @@ export default function ProjectsPage() {
               Projects
             </h1>
             <p className='mt-1 text-sm text-muted-foreground'>
-              Manage your projects and tasks
+              {org ? (
+                <>
+                  <span className='font-medium text-foreground'>
+                    {org.name}
+                  </span>
+                  {' · '}
+                  Organization workspace
+                </>
+              ) : (
+                'Manage your projects and tasks'
+              )}
             </p>
           </div>
           <Button onClick={() => setModalOpen(true)} size='sm'>

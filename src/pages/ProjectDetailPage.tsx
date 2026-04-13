@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Project, Task, TaskStatus, User } from '@/types';
@@ -9,7 +9,11 @@ import {
   deleteTask,
   getAllUsers,
   updateProject,
+  reorderProjectTasks,
+  getSafeUserById,
 } from '@/lib/mock-db';
+import { applyTaskReorder, sortTasksForDisplay } from '@/lib/task-order';
+import type { DropResult } from '@hello-pangea/dnd';
 import Navbar from '@/components/Navbar';
 import KanbanBoard from '@/components/KanbanBoard';
 import TaskModal from '@/components/TaskModal';
@@ -57,64 +61,92 @@ export default function ProjectDetailPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('kanban');
 
   const fetchData = useCallback(async () => {
-    if (!id) return;
+    if (!id || !user) {
+      setLoading(false);
+      return;
+    }
+    const member = getSafeUserById(user.id) ?? user;
+    if (!member.org_id) {
+      setError(
+        'Organization not available. Please sign out and sign in again.'
+      );
+      setLoading(false);
+      return;
+    }
     try {
       const [projectData, allUsers] = await Promise.all([
-        getProject(id),
-        Promise.resolve(getAllUsers()),
+        getProject(id, member.id),
+        Promise.resolve(getAllUsers(member.org_id)),
       ]);
       setProject(projectData);
       setTasks(projectData.tasks);
       setUsers(allUsers);
-    } catch {
-      setError('Project not found');
+    } catch (err: unknown) {
+      const e = err as { error?: string };
+      setError(
+        e?.error === 'forbidden'
+          ? 'You do not have access to this project.'
+          : 'Project not found'
+      );
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, user]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  const filteredTasks = tasks.filter(t => {
-    if (statusFilter !== 'all' && t.status !== statusFilter) return false;
-    if (assigneeFilter !== 'all') {
-      if (assigneeFilter === 'unassigned' && t.assignee_id) return false;
-      if (assigneeFilter !== 'unassigned' && t.assignee_id !== assigneeFilter)
-        return false;
-    }
-    return true;
-  });
+  const displayTasks = useMemo(() => {
+    const filtered = tasks.filter(t => {
+      if (statusFilter !== 'all' && t.status !== statusFilter) return false;
+      if (assigneeFilter !== 'all') {
+        if (assigneeFilter === 'unassigned' && t.assignee_id) return false;
+        if (assigneeFilter !== 'unassigned' && t.assignee_id !== assigneeFilter)
+          return false;
+      }
+      return true;
+    });
+    return sortTasksForDisplay(filtered);
+  }, [tasks, statusFilter, assigneeFilter]);
 
-  // Optimistic status change
-  const handleStatusChange = async (taskId: string, newStatus: TaskStatus) => {
+  const handleKanbanDragEnd = async (result: DropResult) => {
+    if (!result.destination || !id || !user) return;
+    const source = {
+      droppableId: result.source.droppableId as TaskStatus,
+      index: result.source.index,
+    };
+    const destination = {
+      droppableId: result.destination.droppableId as TaskStatus,
+      index: result.destination.index,
+    };
     const prev = [...tasks];
     setTasks(ts =>
-      ts.map(t =>
-        t.id === taskId
-          ? { ...t, status: newStatus, updated_at: new Date().toISOString() }
-          : t
-      )
+      applyTaskReorder(ts, result.draggableId, source, destination)
     );
     try {
-      await updateTask(taskId, { status: newStatus });
-      toast.success('Task updated');
+      await reorderProjectTasks(
+        id,
+        user.id,
+        result.draggableId,
+        source,
+        destination
+      );
     } catch {
       setTasks(prev);
-      toast.error('Failed to update task');
+      toast.error('Failed to update board');
     }
   };
 
   const handleSaveTask = async (data: any) => {
-    if (!id) return;
+    if (!id || !user) return;
     try {
       if (editingTask) {
-        const updated = await updateTask(editingTask.id, data);
+        const updated = await updateTask(editingTask.id, user.id, data);
         setTasks(ts => ts.map(t => (t.id === updated.id ? updated : t)));
         toast.success('Task updated');
       } else {
-        const created = await createTask(id, data);
+        const created = await createTask(id, user.id, data);
         setTasks(ts => [...ts, created]);
         toast.success('Task created');
       }
@@ -125,9 +157,9 @@ export default function ProjectDetailPage() {
   };
 
   const handleDeleteTask = async () => {
-    if (!editingTask) return;
+    if (!editingTask || !user) return;
     try {
-      await deleteTask(editingTask.id);
+      await deleteTask(editingTask.id, user.id);
       setTasks(ts => ts.filter(t => t.id !== editingTask.id));
       toast.success('Task deleted');
       setTaskModalOpen(false);
@@ -146,12 +178,8 @@ export default function ProjectDetailPage() {
       const updated = await updateProject(project.id, data, user.id);
       setProject(updated);
       toast.success('Project updated');
-    } catch (err: any) {
-      toast.error(
-        err?.error === 'forbidden'
-          ? 'Only the owner can edit'
-          : 'Failed to update'
-      );
+    } catch {
+      toast.error('Failed to update');
     }
   };
 
@@ -186,7 +214,7 @@ export default function ProjectDetailPage() {
     );
   }
 
-  const isOwner = project.owner_id === user?.id;
+  const canEditProjectMeta = Boolean(user);
 
   return (
     <div className='min-h-screen bg-background'>
@@ -207,7 +235,7 @@ export default function ProjectDetailPage() {
                 <h1 className='text-2xl font-bold tracking-tight text-foreground'>
                   {project.name}
                 </h1>
-                {isOwner && (
+                {canEditProjectMeta && (
                   <Button
                     variant='ghost'
                     size='icon'
@@ -297,7 +325,7 @@ export default function ProjectDetailPage() {
               setTaskModalOpen(true);
             }}
           />
-        ) : filteredTasks.length === 0 ? (
+        ) : displayTasks.length === 0 ? (
           <EmptyState
             icon={ListTodo}
             title='No matching tasks'
@@ -305,17 +333,17 @@ export default function ProjectDetailPage() {
           />
         ) : viewMode === 'kanban' ? (
           <KanbanBoard
-            tasks={filteredTasks}
+            tasks={displayTasks}
             users={users}
             onTaskClick={t => {
               setEditingTask(t);
               setTaskModalOpen(true);
             }}
-            onStatusChange={handleStatusChange}
+            onDragEnd={handleKanbanDragEnd}
           />
         ) : (
           <div className='space-y-2 animate-fade-in'>
-            {filteredTasks.map(t => (
+            {displayTasks.map(t => (
               <TaskCard
                 key={t.id}
                 task={t}

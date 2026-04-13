@@ -93,10 +93,6 @@ export default function LoginPage() {
             Sign up
           </Link>
         </p>
-
-        <div className='mt-4 rounded-lg bg-muted p-3 text-center text-xs text-muted-foreground'>
-          <strong>Test credentials:</strong> test@example.com / password123
-        </div>
       </div>
     </div>
   );

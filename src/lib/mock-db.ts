@@ -1,9 +1,18 @@
-import type { User, Project, Task, TaskStatus, TaskPriority } from '@/types';
+import type {
+  User,
+  Project,
+  Task,
+  TaskStatus,
+  TaskPriority,
+  Organization,
+} from '@/types';
+import { applyTaskReorder, sortTasksForDisplay } from './task-order';
 
 const STORAGE_KEYS = {
   users: 'taskflow_users',
   projects: 'taskflow_projects',
   tasks: 'taskflow_tasks',
+  orgs: 'taskflow_orgs',
 };
 
 function generateId(): string {
@@ -14,15 +23,30 @@ function now(): string {
   return new Date().toISOString();
 }
 
-// Seed data
+function generateInviteCode(): string {
+  const part = () =>
+    Math.random().toString(36).slice(2, 6).toUpperCase().padEnd(4, 'X');
+  return `ORG-${part()}-${part()}`;
+}
+
+// Seed data (first visit only)
 function initializeDB() {
   if (localStorage.getItem(STORAGE_KEYS.users)) return;
+
+  const defaultOrg: Organization = {
+    id: 'org_1',
+    name: 'Acme Corp',
+    invite_code: 'ACME-DEMO',
+    owner_id: 'usr_1',
+    created_at: '2026-04-01T10:00:00Z',
+  };
 
   const testUser: User & { password: string } = {
     id: 'usr_1',
     name: 'Test User',
     email: 'test@example.com',
     password: 'password123',
+    org_id: defaultOrg.id,
     created_at: '2026-04-01T10:00:00Z',
   };
 
@@ -31,6 +55,7 @@ function initializeDB() {
     name: 'Jane Doe',
     email: 'jane@example.com',
     password: 'password123',
+    org_id: defaultOrg.id,
     created_at: '2026-04-01T10:00:00Z',
   };
 
@@ -40,6 +65,7 @@ function initializeDB() {
     description:
       'Q2 redesign of the company website with modern UI/UX improvements',
     owner_id: 'usr_1',
+    org_id: defaultOrg.id,
     created_at: '2026-04-01T10:00:00Z',
   };
 
@@ -49,6 +75,7 @@ function initializeDB() {
     description:
       'Build the first version of our iOS and Android mobile application',
     owner_id: 'usr_1',
+    org_id: defaultOrg.id,
     created_at: '2026-04-03T10:00:00Z',
   };
 
@@ -59,6 +86,7 @@ function initializeDB() {
       description:
         'Create high-fidelity mockups for the new homepage layout including hero section, features grid, and testimonials.',
       status: 'in_progress',
+      position: 0,
       priority: 'high',
       project_id: 'prj_1',
       assignee_id: 'usr_1',
@@ -72,6 +100,7 @@ function initializeDB() {
       description:
         'Configure GitHub Actions for automated testing and deployment to staging.',
       status: 'todo',
+      position: 0,
       priority: 'medium',
       project_id: 'prj_1',
       assignee_id: 'usr_2',
@@ -85,6 +114,7 @@ function initializeDB() {
       description:
         'Document all REST endpoints with request/response examples using OpenAPI spec.',
       status: 'done',
+      position: 0,
       priority: 'low',
       project_id: 'prj_1',
       assignee_id: 'usr_1',
@@ -97,6 +127,7 @@ function initializeDB() {
       title: 'Implement user onboarding flow',
       description: 'Build a step-by-step onboarding experience for new users.',
       status: 'todo',
+      position: 0,
       priority: 'high',
       project_id: 'prj_2',
       assignee_id: null,
@@ -110,6 +141,7 @@ function initializeDB() {
       description:
         'Integrate Firebase Cloud Messaging for push notification support.',
       status: 'in_progress',
+      position: 0,
       priority: 'medium',
       project_id: 'prj_2',
       assignee_id: 'usr_2',
@@ -119,12 +151,88 @@ function initializeDB() {
     },
   ];
 
+  localStorage.setItem(STORAGE_KEYS.orgs, JSON.stringify([defaultOrg]));
   localStorage.setItem(STORAGE_KEYS.users, JSON.stringify([testUser, janeDoe]));
   localStorage.setItem(
     STORAGE_KEYS.projects,
     JSON.stringify([project, project2])
   );
   localStorage.setItem(STORAGE_KEYS.tasks, JSON.stringify(tasks));
+}
+
+/** Upgrade older localStorage that predates organizations. */
+function ensureOrgMigration() {
+  const usersRaw = localStorage.getItem(STORAGE_KEYS.users);
+  if (!usersRaw) return;
+
+  const orgsRaw = localStorage.getItem(STORAGE_KEYS.orgs);
+  if (!orgsRaw) {
+    const users = JSON.parse(usersRaw) as (User & { password: string })[];
+    const projects = getItems<Project & { org_id?: string }>(
+      STORAGE_KEYS.projects
+    );
+    const org: Organization = {
+      id: `org_mig_${generateId().slice(0, 8)}`,
+      name: 'My organization',
+      invite_code: generateInviteCode(),
+      owner_id: users[0]?.id ?? '',
+      created_at: now(),
+    };
+    setItems(STORAGE_KEYS.orgs, [org]);
+    setItems(
+      STORAGE_KEYS.users,
+      users.map(u => ({ ...u, org_id: u.org_id ?? org.id }))
+    );
+    setItems(
+      STORAGE_KEYS.projects,
+      projects.map(p => ({ ...p, org_id: p.org_id ?? org.id }))
+    );
+    return;
+  }
+
+  const orgs = JSON.parse(orgsRaw) as Organization[];
+  const defaultOrgId = orgs[0]?.id;
+  if (!defaultOrgId) return;
+
+  const users = JSON.parse(usersRaw) as (User & {
+    password: string;
+    org_id?: string;
+  })[];
+  if (users.some(u => !u.org_id)) {
+    setItems(
+      STORAGE_KEYS.users,
+      users.map(u => ({ ...u, org_id: u.org_id ?? defaultOrgId }))
+    );
+  }
+
+  const projects = getItems<Project & { org_id?: string }>(
+    STORAGE_KEYS.projects
+  );
+  if (projects.some(p => !p.org_id)) {
+    setItems(
+      STORAGE_KEYS.projects,
+      projects.map(p => ({ ...p, org_id: p.org_id ?? defaultOrgId }))
+    );
+  }
+
+  patchOrganizationOwners();
+}
+
+function patchOrganizationOwners() {
+  type OrgRow = Organization & { owner_id?: string };
+  const orgs = getItems<OrgRow>(STORAGE_KEYS.orgs);
+  const users = getItems<User & { password: string }>(STORAGE_KEYS.users);
+  let changed = false;
+  const next: Organization[] = orgs.map(o => {
+    if (o.owner_id) return o as Organization;
+    changed = true;
+    const firstMember = users.find(u => u.org_id === o.id);
+    return {
+      ...(o as Organization),
+      owner_id: firstMember?.id ?? users[0]?.id ?? '',
+    };
+  });
+  if (changed) setItems(STORAGE_KEYS.orgs, next);
 }
 
 // Generic getters/setters
@@ -137,6 +245,57 @@ function setItems<T>(key: string, items: T[]) {
   localStorage.setItem(key, JSON.stringify(items));
 }
 
+function hydrateTask(raw: Task & { position?: number }): Task {
+  return {
+    ...raw,
+    position: typeof raw.position === 'number' ? raw.position : 0,
+  };
+}
+
+function loadTasks(): Task[] {
+  const data = localStorage.getItem(STORAGE_KEYS.tasks);
+  if (!data) return [];
+  const parsed = JSON.parse(data) as Task[];
+  return parsed.map(hydrateTask);
+}
+
+function saveTasks(tasks: Task[]) {
+  localStorage.setItem(STORAGE_KEYS.tasks, JSON.stringify(tasks));
+}
+
+function getMemberUser(
+  userId: string
+): (User & { password: string }) | undefined {
+  ensureOrgMigration();
+  return getItems<User & { password: string }>(STORAGE_KEYS.users).find(
+    u => u.id === userId
+  );
+}
+
+async function assertProjectInUserOrg(
+  userId: string,
+  projectId: string
+): Promise<Project> {
+  const member = getMemberUser(userId);
+  if (!member?.org_id) throw { error: 'forbidden' };
+  const projects = getItems<Project>(STORAGE_KEYS.projects);
+  const project = projects.find(p => p.id === projectId);
+  if (!project) throw { error: 'not found' };
+  if (project.org_id !== member.org_id) throw { error: 'forbidden' };
+  return project;
+}
+
+async function assertTaskInUserOrg(
+  userId: string,
+  taskId: string
+): Promise<Task> {
+  const tasks = loadTasks();
+  const task = tasks.find(t => t.id === taskId);
+  if (!task) throw { error: 'not found' };
+  await assertProjectInUserOrg(userId, task.project_id);
+  return task;
+}
+
 // Simulate network delay
 function delay(ms = 300): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms + Math.random() * 200));
@@ -144,17 +303,64 @@ function delay(ms = 300): Promise<void> {
 
 // ─── Auth ───
 
+export function getSafeUserById(userId: string): User | null {
+  ensureOrgMigration();
+  const u = getMemberUser(userId);
+  if (!u) return null;
+  const { password: _, ...safe } = u;
+  return safe as User;
+}
+
 export async function registerUser(
   name: string,
   email: string,
-  password: string
+  password: string,
+  inviteCode?: string | null
 ) {
   await delay();
+  ensureOrgMigration();
   const users = getItems<User & { password: string }>(STORAGE_KEYS.users);
   if (users.find(u => u.email === email)) {
     throw { error: 'validation failed', fields: { email: 'already exists' } };
   }
-  const user = { id: generateId(), name, email, password, created_at: now() };
+
+  let org_id: string;
+  const newUserId = generateId();
+  const trimmedInvite = inviteCode?.trim();
+  if (trimmedInvite) {
+    const orgs = getItems<Organization>(STORAGE_KEYS.orgs);
+    const org = orgs.find(
+      o => o.invite_code.toUpperCase() === trimmedInvite.toUpperCase()
+    );
+    if (!org) {
+      throw {
+        error: 'validation failed',
+        fields: { invite: 'Invalid or unknown invite code' },
+      };
+    }
+    org_id = org.id;
+  } else {
+    const orgs = getItems<Organization>(STORAGE_KEYS.orgs);
+    const newOrg: Organization = {
+      id: generateId(),
+      name: `${name.trim().split(/\s+/)[0] || 'My'}'s workspace`,
+      invite_code: generateInviteCode(),
+      owner_id: newUserId,
+      created_at: now(),
+    };
+    orgs.push(newOrg);
+    setItems(STORAGE_KEYS.orgs, orgs);
+    org_id = newOrg.id;
+  }
+
+  const user: User & { password: string } = {
+    id: newUserId,
+    name,
+    email,
+    password,
+    org_id,
+    created_at: now(),
+  };
   users.push(user);
   setItems(STORAGE_KEYS.users, users);
   const token = btoa(
@@ -170,6 +376,7 @@ export async function registerUser(
 
 export async function loginUser(email: string, password: string) {
   await delay();
+  ensureOrgMigration();
   const users = getItems<User & { password: string }>(STORAGE_KEYS.users);
   const user = users.find(u => u.email === email);
   if (!user || user.password !== password) {
@@ -183,39 +390,96 @@ export async function loginUser(email: string, password: string) {
     })
   );
   const { password: _, ...safeUser } = user;
-  return { token, user: safeUser };
+  return { token, user: safeUser as User };
 }
 
-export function getAllUsers(): User[] {
-  return getItems<User & { password: string }>(STORAGE_KEYS.users).map(
-    ({ password, ...u }) => u as unknown as User
+export function getAllUsers(orgId: string): User[] {
+  ensureOrgMigration();
+  return getItems<User & { password: string }>(STORAGE_KEYS.users)
+    .filter(u => u.org_id === orgId)
+    .map(({ password, ...u }) => u as unknown as User);
+}
+
+// ─── Organizations ───
+
+export async function getOrganization(orgId: string): Promise<Organization> {
+  await delay();
+  ensureOrgMigration();
+  const org = getItems<Organization>(STORAGE_KEYS.orgs).find(
+    o => o.id === orgId
   );
+  if (!org) throw { error: 'not found' };
+  return org;
+}
+
+export async function updateOrganization(
+  orgId: string,
+  userId: string,
+  data: { name: string }
+): Promise<Organization> {
+  await delay();
+  ensureOrgMigration();
+  const orgs = getItems<Organization>(STORAGE_KEYS.orgs);
+  const idx = orgs.findIndex(o => o.id === orgId);
+  if (idx === -1) throw { error: 'not found' };
+  if (orgs[idx].owner_id !== userId) throw { error: 'forbidden' };
+  const trimmed = data.name.trim();
+  if (!trimmed)
+    throw { error: 'validation failed', fields: { name: 'Required' } };
+  orgs[idx] = { ...orgs[idx], name: trimmed };
+  setItems(STORAGE_KEYS.orgs, orgs);
+  return orgs[idx];
+}
+
+export async function updateUserProfile(
+  userId: string,
+  data: { name: string }
+): Promise<User> {
+  await delay();
+  ensureOrgMigration();
+  const all = getItems<User & { password: string }>(STORAGE_KEYS.users);
+  const idx = all.findIndex(u => u.id === userId);
+  if (idx === -1) throw { error: 'not found' };
+  const trimmed = data.name.trim();
+  if (!trimmed)
+    throw { error: 'validation failed', fields: { name: 'Required' } };
+  all[idx] = { ...all[idx], name: trimmed };
+  setItems(STORAGE_KEYS.users, all);
+  const { password: _, ...safe } = all[idx];
+  return safe as User;
+}
+
+export async function regenerateOrganizationInviteCode(
+  userId: string
+): Promise<Organization> {
+  await delay();
+  const member = getMemberUser(userId);
+  if (!member?.org_id) throw { error: 'forbidden' };
+  const orgs = getItems<Organization>(STORAGE_KEYS.orgs);
+  const idx = orgs.findIndex(o => o.id === member.org_id);
+  if (idx === -1) throw { error: 'not found' };
+  orgs[idx] = { ...orgs[idx], invite_code: generateInviteCode() };
+  setItems(STORAGE_KEYS.orgs, orgs);
+  return orgs[idx];
 }
 
 // ─── Projects ───
 
 export async function getProjects(userId: string): Promise<Project[]> {
   await delay();
+  const member = getMemberUser(userId);
+  if (!member?.org_id) return [];
   const projects = getItems<Project>(STORAGE_KEYS.projects);
-  const tasks = getItems<Task>(STORAGE_KEYS.tasks);
-  const taskProjectIds = new Set(
-    tasks.filter(t => t.assignee_id === userId).map(t => t.project_id)
-  );
-  return projects.filter(
-    p => p.owner_id === userId || taskProjectIds.has(p.id)
-  );
+  return projects.filter(p => p.org_id === member.org_id);
 }
 
 export async function getProject(
-  projectId: string
+  projectId: string,
+  userId: string
 ): Promise<Project & { tasks: Task[] }> {
   await delay();
-  const projects = getItems<Project>(STORAGE_KEYS.projects);
-  const project = projects.find(p => p.id === projectId);
-  if (!project) throw { error: 'not found' };
-  const tasks = getItems<Task>(STORAGE_KEYS.tasks).filter(
-    t => t.project_id === projectId
-  );
+  const project = await assertProjectInUserOrg(userId, projectId);
+  const tasks = loadTasks().filter(t => t.project_id === projectId);
   return { ...project, tasks };
 }
 
@@ -225,12 +489,15 @@ export async function createProject(
   ownerId: string
 ): Promise<Project> {
   await delay();
+  const member = getMemberUser(ownerId);
+  if (!member?.org_id) throw { error: 'forbidden' };
   const projects = getItems<Project>(STORAGE_KEYS.projects);
   const project: Project = {
     id: generateId(),
     name,
     description,
     owner_id: ownerId,
+    org_id: member.org_id,
     created_at: now(),
   };
   projects.push(project);
@@ -244,10 +511,10 @@ export async function updateProject(
   userId: string
 ): Promise<Project> {
   await delay();
+  await assertProjectInUserOrg(userId, projectId);
   const projects = getItems<Project>(STORAGE_KEYS.projects);
   const idx = projects.findIndex(p => p.id === projectId);
   if (idx === -1) throw { error: 'not found' };
-  if (projects[idx].owner_id !== userId) throw { error: 'forbidden' };
   projects[idx] = { ...projects[idx], ...data };
   setItems(STORAGE_KEYS.projects, projects);
   return projects[idx];
@@ -258,6 +525,7 @@ export async function deleteProject(
   userId: string
 ): Promise<void> {
   await delay();
+  await assertProjectInUserOrg(userId, projectId);
   const projects = getItems<Project>(STORAGE_KEYS.projects);
   const project = projects.find(p => p.id === projectId);
   if (!project) throw { error: 'not found' };
@@ -266,11 +534,8 @@ export async function deleteProject(
     STORAGE_KEYS.projects,
     projects.filter(p => p.id !== projectId)
   );
-  const tasks = getItems<Task>(STORAGE_KEYS.tasks);
-  setItems(
-    STORAGE_KEYS.tasks,
-    tasks.filter(t => t.project_id !== projectId)
-  );
+  const tasks = loadTasks();
+  saveTasks(tasks.filter(t => t.project_id !== projectId));
 }
 
 // ─── Tasks ───
@@ -280,9 +545,7 @@ export async function getTasks(
   filters?: { status?: TaskStatus; assignee?: string }
 ): Promise<Task[]> {
   await delay();
-  let tasks = getItems<Task>(STORAGE_KEYS.tasks).filter(
-    t => t.project_id === projectId
-  );
+  let tasks = loadTasks().filter(t => t.project_id === projectId);
   if (filters?.status) tasks = tasks.filter(t => t.status === filters.status);
   if (filters?.assignee)
     tasks = tasks.filter(t => t.assignee_id === filters.assignee);
@@ -291,6 +554,7 @@ export async function getTasks(
 
 export async function createTask(
   projectId: string,
+  userId: string,
   data: {
     title: string;
     description?: string;
@@ -300,12 +564,29 @@ export async function createTask(
   }
 ): Promise<Task> {
   await delay();
-  const tasks = getItems<Task>(STORAGE_KEYS.tasks);
+  const member = getMemberUser(userId);
+  if (!member?.org_id) throw { error: 'forbidden' };
+  await assertProjectInUserOrg(userId, projectId);
+  if (data.assignee_id) {
+    const assignee = getMemberUser(data.assignee_id);
+    if (!assignee || assignee.org_id !== member.org_id) {
+      throw {
+        error: 'validation failed',
+        fields: { assignee: 'Not in your organization' },
+      };
+    }
+  }
+  const tasks = loadTasks();
+  const todoPositions = tasks
+    .filter(t => t.project_id === projectId && t.status === 'todo')
+    .map(t => t.position);
+  const position = (todoPositions.length ? Math.max(...todoPositions) : -1) + 1;
   const task: Task = {
     id: generateId(),
     title: data.title,
     description: data.description,
     status: 'todo',
+    position,
     priority: data.priority,
     project_id: projectId,
     assignee_id: data.assignee_id || null,
@@ -314,18 +595,20 @@ export async function createTask(
     updated_at: now(),
   };
   tasks.push(task);
-  setItems(STORAGE_KEYS.tasks, tasks);
+  saveTasks(tasks);
   return task;
 }
 
 export async function updateTask(
   taskId: string,
+  userId: string,
   data: Partial<
     Pick<
       Task,
       | 'title'
       | 'description'
       | 'status'
+      | 'position'
       | 'priority'
       | 'assignee_id'
       | 'due_date'
@@ -333,29 +616,83 @@ export async function updateTask(
   >
 ): Promise<Task> {
   await delay();
-  const tasks = getItems<Task>(STORAGE_KEYS.tasks);
+  const member = getMemberUser(userId);
+  if (!member?.org_id) throw { error: 'forbidden' };
+  await assertTaskInUserOrg(userId, taskId);
+  if (data.assignee_id) {
+    const assignee = getMemberUser(data.assignee_id);
+    if (!assignee || assignee.org_id !== member.org_id) {
+      throw {
+        error: 'validation failed',
+        fields: { assignee: 'Not in your organization' },
+      };
+    }
+  }
+  const tasks = loadTasks();
   const idx = tasks.findIndex(t => t.id === taskId);
   if (idx === -1) throw { error: 'not found' };
-  tasks[idx] = { ...tasks[idx], ...data, updated_at: now() };
-  setItems(STORAGE_KEYS.tasks, tasks);
+  const prev = tasks[idx];
+  let next: Task = { ...prev, ...data, updated_at: now() };
+  if (
+    data.status !== undefined &&
+    data.status !== prev.status &&
+    data.position === undefined
+  ) {
+    const siblings = tasks.filter(
+      t =>
+        t.project_id === prev.project_id &&
+        t.status === data.status &&
+        t.id !== taskId
+    );
+    const maxPos = siblings.length
+      ? Math.max(...siblings.map(t => t.position))
+      : -1;
+    next = { ...next, position: maxPos + 1 };
+  }
+  tasks[idx] = next;
+  saveTasks(tasks);
   return tasks[idx];
 }
 
-export async function deleteTask(taskId: string): Promise<void> {
+export async function reorderProjectTasks(
+  projectId: string,
+  userId: string,
+  taskId: string,
+  source: { droppableId: TaskStatus; index: number },
+  destination: { droppableId: TaskStatus; index: number }
+): Promise<Task[]> {
   await delay();
-  const tasks = getItems<Task>(STORAGE_KEYS.tasks);
-  if (!tasks.find(t => t.id === taskId)) throw { error: 'not found' };
-  setItems(
-    STORAGE_KEYS.tasks,
-    tasks.filter(t => t.id !== taskId)
+  await assertProjectInUserOrg(userId, projectId);
+  const allTasks = loadTasks();
+  const projectTasks = allTasks.filter(t => t.project_id === projectId);
+  if (!projectTasks.some(t => t.id === taskId)) throw { error: 'not found' };
+  const updatedSubset = applyTaskReorder(
+    projectTasks,
+    taskId,
+    source,
+    destination
   );
+  const byId = new Map(updatedSubset.map(t => [t.id, t]));
+  const merged = allTasks.map(t =>
+    t.project_id === projectId ? (byId.get(t.id) ?? t) : t
+  );
+  saveTasks(merged);
+  return sortTasksForDisplay(updatedSubset);
+}
+
+export async function deleteTask(
+  taskId: string,
+  userId: string
+): Promise<void> {
+  await delay();
+  await assertTaskInUserOrg(userId, taskId);
+  const tasks = loadTasks();
+  saveTasks(tasks.filter(t => t.id !== taskId));
 }
 
 export async function getProjectStats(projectId: string) {
   await delay();
-  const tasks = getItems<Task>(STORAGE_KEYS.tasks).filter(
-    t => t.project_id === projectId
-  );
+  const tasks = loadTasks().filter(t => t.project_id === projectId);
   const byStatus = { todo: 0, in_progress: 0, done: 0 };
   const byAssignee: Record<string, number> = {};
   tasks.forEach(t => {
@@ -366,5 +703,5 @@ export async function getProjectStats(projectId: string) {
   return { total: tasks.length, byStatus, byAssignee };
 }
 
-// Initialize on import
 initializeDB();
+ensureOrgMigration();
